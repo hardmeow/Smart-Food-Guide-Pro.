@@ -719,6 +719,7 @@
                     <div class="alert alert-danger">
                         <div style="font-weight: 600;">⚠️ 分析失败</div>
                         <div id="errorMessage"></div>
+                        <button class="btn btn-primary" id="errorRetryBtn" style="margin-top: 12px;">🔄 返回预览</button>
                     </div>
                 </div>
             </div>
@@ -1622,20 +1623,42 @@ ${text}
         }
 
         function showPreview() {
+            // 隐藏所有section
             document.getElementById('uploadSection').classList.add('hidden');
+            document.getElementById('cameraSection').classList.add('hidden');
+            document.getElementById('cropSection').classList.add('hidden');
+            document.getElementById('loadingSection').classList.add('hidden');
+            document.getElementById('editOCRSection').classList.add('hidden');
+            document.getElementById('resultsSection').classList.add('hidden');
+            document.getElementById('errorSection').classList.add('hidden');
+            // 显示预览
             document.getElementById('previewSection').classList.remove('hidden');
             document.getElementById('previewImage').src = state.currentImage;
         }
 
         function showLoading() {
+            // 隐藏所有section
+            document.getElementById('uploadSection').classList.add('hidden');
+            document.getElementById('cameraSection').classList.add('hidden');
             document.getElementById('previewSection').classList.add('hidden');
-            document.getElementById('loadingSection').classList.remove('hidden');
+            document.getElementById('cropSection').classList.add('hidden');
+            document.getElementById('editOCRSection').classList.add('hidden');
             document.getElementById('resultsSection').classList.add('hidden');
             document.getElementById('errorSection').classList.add('hidden');
+            // 显示loading
+            document.getElementById('loadingSection').classList.remove('hidden');
         }
 
         function showResults(analysis) {
+            // 隐藏所有section
+            document.getElementById('uploadSection').classList.add('hidden');
+            document.getElementById('cameraSection').classList.add('hidden');
+            document.getElementById('previewSection').classList.add('hidden');
+            document.getElementById('cropSection').classList.add('hidden');
             document.getElementById('loadingSection').classList.add('hidden');
+            document.getElementById('editOCRSection').classList.add('hidden');
+            document.getElementById('errorSection').classList.add('hidden');
+            // 显示结果
             document.getElementById('resultsSection').classList.remove('hidden');
 
             state.currentAnalysis = analysis;
@@ -1756,15 +1779,29 @@ ${text}
         }
 
         function showError(message) {
+            // 隐藏所有section
+            document.getElementById('uploadSection').classList.add('hidden');
+            document.getElementById('cameraSection').classList.add('hidden');
+            document.getElementById('previewSection').classList.add('hidden');
+            document.getElementById('cropSection').classList.add('hidden');
             document.getElementById('loadingSection').classList.add('hidden');
+            document.getElementById('editOCRSection').classList.add('hidden');
             document.getElementById('resultsSection').classList.add('hidden');
+            // 显示错误
             document.getElementById('errorSection').classList.remove('hidden');
             document.getElementById('errorMessage').textContent = message;
         }
 
         function showOCREdit(text) {
+            // 隐藏所有section
+            document.getElementById('uploadSection').classList.add('hidden');
+            document.getElementById('cameraSection').classList.add('hidden');
             document.getElementById('previewSection').classList.add('hidden');
+            document.getElementById('cropSection').classList.add('hidden');
             document.getElementById('loadingSection').classList.add('hidden');
+            document.getElementById('resultsSection').classList.add('hidden');
+            document.getElementById('errorSection').classList.add('hidden');
+            // 显示OCR编辑
             document.getElementById('editOCRSection').classList.remove('hidden');
             document.getElementById('ocrTextInput').value = text;
             const netWeightInput = document.getElementById('netWeightInputEdit');
@@ -2111,6 +2148,12 @@ ${text}
                     Utils.showNotification('✅ 数据已清空', 'success');
                     setTimeout(() => location.reload(), 1500);
                 }
+            });
+
+            // 错误返回按钮
+            document.getElementById('errorRetryBtn').addEventListener('click', () => {
+                document.getElementById('errorSection').classList.add('hidden');
+                document.getElementById('previewSection').classList.remove('hidden');
             });
 
             // 模态框
