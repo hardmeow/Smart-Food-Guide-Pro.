@@ -1,0 +1,839 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>智食鉴 Pro - 食品健康分析</title>
+    <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5.0.4/dist/tesseract.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@zxing/library@0.20.0/umd/index.min.js"></script>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        :root {
+            --primary: #10B981;
+            --gray-50: #F9FAFB;
+            --gray-100: #F3F4F6;
+            --gray-200: #E5E7EB;
+            --gray-700: #374151;
+            --gray-800: #1F2937;
+            --gray-900: #111827;
+        }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, var(--gray-50) 0%, #F0FDF4 100%);
+            color: #1F2937;
+        }
+        body.dark { background: linear-gradient(135deg, var(--gray-900) 0%, #0F172A 100%); color: #E5E7EB; }
+        .container { max-width: 1200px; margin: 0 auto; padding: 20px; }
+        .header { display: flex; justify-content: space-between; align-items: center; padding: 20px 0; border-bottom: 1px solid var(--gray-200); }
+        body.dark .header { border-bottom-color: var(--gray-700); }
+        h1 { font-size: 24px; font-weight: 700; background: linear-gradient(135deg, var(--primary) 0%, #059669 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+        .btn { padding: 12px 20px; border: none; border-radius: 8px; cursor: pointer; font-weight: 600; transition: all 0.3s; }
+        .btn-primary { background: linear-gradient(135deg, var(--primary) 0%, #059669 100%); color: white; }
+        .btn-primary:hover:not(:disabled) { transform: translateY(-2px); box-shadow: 0 6px 20px rgba(16, 185, 129, 0.4); }
+        .btn-secondary { background: var(--gray-200); color: #1F2937; }
+        body.dark .btn-secondary { background: var(--gray-700); color: #E5E7EB; }
+        .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+        .card { background: white; border-radius: 12px; padding: 20px; margin: 20px 0; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
+        body.dark .card { background: var(--gray-800); box-shadow: 0 1px 3px rgba(0,0,0,0.3); }
+        .upload-area { border: 2px dashed var(--primary); border-radius: 12px; padding: 40px 20px; text-align: center; background: linear-gradient(135deg, #ECFDF5 0%, #F0FDF4 100%); cursor: pointer; transition: all 0.3s; }
+        .upload-area:hover { background: #D1FAE5; border-color: #059669; }
+        .upload-area.drag-over { background: #A7F3D0; border-color: #059669; }
+        input[type="file"] { display: none; }
+        .tabs { display: flex; gap: 8px; border-bottom: 2px solid var(--gray-200); margin: 20px 0; }
+        body.dark .tabs { border-bottom-color: var(--gray-700); }
+        .tab { padding: 12px 20px; background: none; border: none; cursor: pointer; font-weight: 600; color: #6B7280; border-bottom: 3px solid transparent; }
+        .tab.active { color: var(--primary); border-bottom-color: var(--primary); }
+        .modal { display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); z-index: 1000; align-items: center; justify-content: center; }
+        .modal.active { display: flex; }
+        .modal-content { background: white; border-radius: 12px; padding: 24px; max-width: 600px; width: 90%; max-height: 90vh; overflow-y: auto; }
+        body.dark .modal-content { background: var(--gray-800); }
+        .spinner { display: inline-block; width: 20px; height: 20px; border: 3px solid var(--gray-300); border-top-color: var(--primary); border-radius: 50%; animation: spin 0.8s linear infinite; }
+        @keyframes spin { to { transform: rotate(360deg); } }
+        .progress-bar { width: 100%; height: 8px; background: var(--gray-200); border-radius: 4px; overflow: hidden; margin: 12px 0; }
+        body.dark .progress-bar { background: var(--gray-700); }
+        .progress-fill { height: 100%; background: linear-gradient(90deg, var(--primary) 0%, #059669 100%); transition: width 0.3s; }
+        .hidden { display: none !important; }
+        video { width: 100%; height: auto; aspect-ratio: 4/3; object-fit: cover; border-radius: 8px; }
+        canvas { max-width: 100%; border-radius: 8px; }
+        img { max-width: 100%; border-radius: 8px; }
+        .flex { display: flex; gap: 12px; }
+        .flex-col { flex-direction: column; }
+        .w-full { width: 100%; }
+        .text-center { text-align: center; }
+        .ingredient-tag { display: inline-block; padding: 8px 12px; border-radius: 20px; font-size: 12px; font-weight: 600; margin: 4px; cursor: pointer; }
+        .risk-0, .risk-1 { background: #ECFDF5; color: #059669; }
+        .risk-2, .risk-3 { background: #FFFBEB; color: #B45309; }
+        .risk-4, .risk-5 { background: #FEE2E2; color: #DC2626; }
+        .alert { padding: 12px 16px; border-radius: 8px; margin: 12px 0; border-left: 4px solid; }
+        .alert-danger { background: #FEE2E2; border-left-color: #EF4444; color: #DC2626; }
+        .alert-success { background: #ECFDF5; border-left-color: var(--primary); color: #059669; }
+        .alert-warning { background: #FEF3C7; border-left-color: #F59E0B; color: #B45309; }
+        input[type="text"], input[type="password"], textarea { width: 100%; padding: 12px; border: 1px solid var(--gray-300); border-radius: 8px; font-size: 14px; margin-bottom: 12px; }
+        body.dark input[type="text"], body.dark input[type="password"], body.dark textarea { background: var(--gray-700); border-color: var(--gray-600); color: #E5E7EB; }
+        .crop-container { position: relative; display: inline-block; width: 100%; }
+        .crop-image { width: 100%; cursor: crosshair; }
+        .crop-box { position: absolute; border: 2px solid var(--primary); background: rgba(16, 185, 129, 0.1); }
+        @media (max-width: 768px) {
+            .container { padding: 12px; }
+            .header { padding: 12px 0; }
+            h1 { font-size: 20px; }
+            .card { padding: 16px; }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🍎 智食鉴 Pro</h1>
+            <div>
+                <button class="btn btn-secondary" id="themeBtn" style="margin-right: 8px;">🌙</button>
+                <button class="btn btn-secondary" id="settingsBtn">⚙️</button>
+            </div>
+        </div>
+
+        <div class="tabs">
+            <button class="tab active" data-tab="scan">📸 扫描</button>
+            <button class="tab" data-tab="history">📋 历史</button>
+        </div>
+
+        <!-- 扫描页面 -->
+        <div id="scan-tab" class="tab-content active">
+            <div id="uploadSection" class="card">
+                <div class="upload-area" id="uploadArea">
+                    <div style="font-size: 48px; margin-bottom: 12px;">📸</div>
+                    <div style="font-size: 16px; font-weight: 600; margin-bottom: 4px;">点击上传或拖拽图片</div>
+                    <div style="font-size: 12px; color: #6B7280;">支持 JPG、PNG 等格式</div>
+                    <input type="file" id="fileInput" accept="image/*">
+                </div>
+                <div class="flex" style="margin-top: 12px;">
+                    <button class="btn btn-primary" id="cameraBtn" style="flex: 1;">📷 打开相机</button>
+                    <button class="btn btn-primary" id="scanBarcodeBtn" style="flex: 1;">📊 扫码</button>
+                </div>
+            </div>
+
+            <!-- 相机 -->
+            <div id="cameraSection" class="card hidden">
+                <video id="cameraVideo" playsinline></video>
+                <div class="flex" style="margin-top: 12px;">
+                    <button class="btn btn-secondary" id="switchCameraBtn" style="flex: 1;">🔄 切换</button>
+                    <button class="btn btn-primary" id="captureBtn" style="flex: 1;">📷 拍照</button>
+                    <button class="btn btn-secondary" id="closeCameraBtn" style="flex: 1;">✕</button>
+                </div>
+            </div>
+
+            <!-- 扫码 -->
+            <div id="barcodeSection" class="card hidden">
+                <video id="barcodeVideo" playsinline style="width: 100%; margin-bottom: 12px;"></video>
+                <div class="flex">
+                    <button class="btn btn-secondary" id="closeBarcodeBtn" style="flex: 1;">✕ 关闭</button>
+                </div>
+            </div>
+
+            <!-- 预览 -->
+            <div id="previewSection" class="card hidden">
+                <img id="previewImage" style="width: 100%; max-height: 300px; object-fit: cover; margin-bottom: 12px;">
+                <div class="flex">
+                    <button class="btn btn-secondary" id="rotateBtn" style="flex: 1;">🔄 旋转</button>
+                    <button class="btn btn-secondary" id="cropBtn" style="flex: 1;">✂️ 裁剪</button>
+                    <button class="btn btn-secondary" id="changeImageBtn" style="flex: 1;">更换</button>
+                    <button class="btn btn-primary" id="analyzeBtn" style="flex: 1;">🚀 分析</button>
+                </div>
+            </div>
+
+            <!-- 裁剪 -->
+            <div id="cropSection" class="card hidden">
+                <div class="crop-container">
+                    <img id="cropImage" class="crop-image" style="width: 100%; cursor: crosshair;">
+                    <div id="cropBox" class="crop-box hidden"></div>
+                </div>
+                <div class="flex" style="margin-top: 12px;">
+                    <button class="btn btn-secondary" id="cancelCropBtn" style="flex: 1;">取消</button>
+                    <button class="btn btn-primary" id="confirmCropBtn" style="flex: 1;">✓ 确认</button>
+                </div>
+            </div>
+
+            <!-- 加载中 -->
+            <div id="loadingSection" class="card hidden text-center">
+                <div class="spinner" style="width: 40px; height: 40px; margin: 0 auto 16px;"></div>
+                <div style="font-size: 16px; font-weight: 600; margin-bottom: 8px;">正在分析...</div>
+                <div class="progress-bar">
+                    <div class="progress-fill" id="progressFill" style="width: 0%;"></div>
+                </div>
+                <div id="loadingStatus" style="font-size: 12px; color: #6B7280; margin-top: 8px;">初始化中...</div>
+                <button class="btn btn-secondary" id="cancelBtn" style="margin-top: 12px;">取消</button>
+            </div>
+
+            <!-- 结果 -->
+            <div id="resultsSection" class="hidden">
+                <div class="card">
+                    <div style="font-size: 18px; font-weight: 700; margin-bottom: 16px;">🎯 健康评分</div>
+                    <div style="text-align: center; margin: 20px 0;">
+                        <div style="font-size: 48px; font-weight: 700; color: var(--primary);" id="scoreNumber">0</div>
+                        <div style="font-size: 14px; color: #6B7280;" id="scoreLevel">优秀</div>
+                    </div>
+                </div>
+
+                <div class="card">
+                    <div style="font-size: 18px; font-weight: 700; margin-bottom: 12px;">🧪 配料成分</div>
+                    <div id="ingredientsList" style="display: flex; flex-wrap: wrap;"></div>
+                </div>
+
+                <div class="card">
+                    <div style="font-size: 18px; font-weight: 700; margin-bottom: 12px;">📊 营养成分</div>
+                    <div id="nutritionGrid" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 12px;"></div>
+                </div>
+
+                <div class="card">
+                    <div style="font-size: 18px; font-weight: 700; margin-bottom: 12px;">💡 建议</div>
+                    <ul id="adviceList" style="list-style: none;"></ul>
+                </div>
+
+                <div class="flex">
+                    <button class="btn btn-secondary" id="resetBtn" style="flex: 1;">🔄 重新扫描</button>
+                    <button class="btn btn-secondary" id="shareBtn" style="flex: 1;">📄 分享</button>
+                </div>
+            </div>
+
+            <!-- 错误 -->
+            <div id="errorSection" class="card hidden">
+                <div class="alert alert-danger">⚠️ <span id="errorMessage"></span></div>
+                <button class="btn btn-secondary w-full" id="retryBtn">重试</button>
+            </div>
+        </div>
+
+        <!-- 历史页面 -->
+        <div id="history-tab" class="tab-content">
+            <div class="card">
+                <div style="font-size: 18px; font-weight: 700; margin-bottom: 12px;">📋 扫描历史</div>
+                <input type="text" id="historySearch" placeholder="搜索...">
+                <ul id="historyList" style="list-style: none;"></ul>
+            </div>
+        </div>
+    </div>
+
+    <!-- 设置模态框 -->
+    <div class="modal" id="settingsModal">
+        <div class="modal-content">
+            <div style="font-size: 20px; font-weight: 700; margin-bottom: 16px;">⚙️ 设置</div>
+            <label style="display: block; font-weight: 600; margin-bottom: 8px;">DeepSeek API Key</label>
+            <input type="password" id="apiKeyInput" placeholder="sk-xxxxxxxxxxxxxxxx">
+            <div style="font-size: 12px; color: #6B7280; margin-bottom: 12px;">格式: sk-开头，至少 20 个字符</div>
+            <button class="btn btn-primary w-full" id="saveApiKeyBtn">保存</button>
+            <button class="btn btn-secondary w-full" id="closeSettingsBtn" style="margin-top: 8px;">关闭</button>
+        </div>
+    </div>
+
+    <script>
+        const CONFIG = {
+            API_URL: 'https://api.deepseek.com/v1/chat/completions',
+            MODEL: 'deepseek-chat',
+            API_TIMEOUT: 30000,
+            MAX_RETRIES: 3,
+            MAX_IMAGE_SIZE: 5 * 1024 * 1024,
+            IMAGE_QUALITY: 0.8,
+            IMAGE_MAX_WIDTH: 1024,
+            IMAGE_MAX_HEIGHT: 1024
+        };
+
+        const app = {
+            apiKey: '',
+            history: [],
+            currentImage: null,
+            currentAnalysis: null,
+            cameraStream: null,
+            barcodeStream: null,
+            facingMode: 'environment',
+            isAnalyzing: false,
+            cropData: null,
+            rotation: 0,
+
+            init() {
+                this.loadData();
+                this.bindEvents();
+                this.renderHistory();
+            },
+
+            loadData() {
+                this.apiKey = localStorage.getItem('apiKey') || '';
+                this.history = JSON.parse(localStorage.getItem('history') || '[]');
+                const theme = localStorage.getItem('theme') || 'light';
+                if (theme === 'dark') document.body.classList.add('dark');
+            },
+
+            saveData() {
+                localStorage.setItem('apiKey', this.apiKey);
+                localStorage.setItem('history', JSON.stringify(this.history));
+            },
+
+            bindEvents() {
+                // 主题
+                document.getElementById('themeBtn').addEventListener('click', () => {
+                    document.body.classList.toggle('dark');
+                    localStorage.setItem('theme', document.body.classList.contains('dark') ? 'dark' : 'light');
+                });
+
+                // 标签页
+                document.querySelectorAll('.tab').forEach(tab => {
+                    tab.addEventListener('click', () => {
+                        document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+                        document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+                        tab.classList.add('active');
+                        document.getElementById(tab.dataset.tab + '-tab').classList.add('active');
+                        if (tab.dataset.tab === 'history') this.renderHistory();
+                    });
+                });
+
+                // 拖放上传
+                const uploadArea = document.getElementById('uploadArea');
+                uploadArea.addEventListener('dragover', (e) => {
+                    e.preventDefault();
+                    uploadArea.classList.add('drag-over');
+                });
+                uploadArea.addEventListener('dragleave', () => {
+                    uploadArea.classList.remove('drag-over');
+                });
+                uploadArea.addEventListener('drop', (e) => {
+                    e.preventDefault();
+                    uploadArea.classList.remove('drag-over');
+                    const file = e.dataTransfer.files[0];
+                    if (file && file.type.startsWith('image/')) {
+                        this.handleImageFile(file);
+                    }
+                });
+
+                // 上传
+                uploadArea.addEventListener('click', () => {
+                    document.getElementById('fileInput').click();
+                });
+
+                document.getElementById('fileInput').addEventListener('change', (e) => {
+                    const file = e.target.files[0];
+                    if (file) this.handleImageFile(file);
+                });
+
+                // 相机
+                document.getElementById('cameraBtn').addEventListener('click', () => this.startCamera());
+                document.getElementById('captureBtn').addEventListener('click', () => this.capturePhoto());
+                document.getElementById('switchCameraBtn').addEventListener('click', () => this.switchCamera());
+                document.getElementById('closeCameraBtn').addEventListener('click', () => this.stopCamera());
+
+                // 扫码
+                document.getElementById('scanBarcodeBtn').addEventListener('click', () => this.startBarcode());
+                document.getElementById('closeBarcodeBtn').addEventListener('click', () => this.stopBarcode());
+
+                // 旋转
+                document.getElementById('rotateBtn').addEventListener('click', () => this.rotateImage());
+
+                // 裁剪
+                document.getElementById('cropBtn').addEventListener('click', () => this.startCrop());
+                document.getElementById('cancelCropBtn').addEventListener('click', () => this.cancelCrop());
+                document.getElementById('confirmCropBtn').addEventListener('click', () => this.confirmCrop());
+
+                // 分析
+                document.getElementById('analyzeBtn').addEventListener('click', () => this.analyze());
+                document.getElementById('changeImageBtn').addEventListener('click', () => {
+                    document.getElementById('previewSection').classList.add('hidden');
+                    document.getElementById('uploadSection').classList.remove('hidden');
+                });
+
+                // 结果
+                document.getElementById('resetBtn').addEventListener('click', () => {
+                    document.getElementById('resultsSection').classList.add('hidden');
+                    document.getElementById('uploadSection').classList.remove('hidden');
+                    this.currentImage = null;
+                    this.rotation = 0;
+                });
+
+                document.getElementById('shareBtn').addEventListener('click', () => this.share());
+                document.getElementById('retryBtn').addEventListener('click', () => this.analyze());
+                document.getElementById('cancelBtn').addEventListener('click', () => this.cancelAnalysis());
+
+                // 设置
+                document.getElementById('settingsBtn').addEventListener('click', () => {
+                    document.getElementById('apiKeyInput').value = this.apiKey;
+                    document.getElementById('settingsModal').classList.add('active');
+                });
+
+                document.getElementById('saveApiKeyBtn').addEventListener('click', () => {
+                    const key = document.getElementById('apiKeyInput').value.trim();
+                    if (!this.validateApiKey(key)) {
+                        alert('❌ API Key 格式错误，应以 sk- 开头');
+                        return;
+                    }
+                    this.apiKey = key;
+                    this.saveData();
+                    alert('✅ API Key 已保存');
+                    document.getElementById('settingsModal').classList.remove('active');
+                });
+
+                document.getElementById('closeSettingsBtn').addEventListener('click', () => {
+                    document.getElementById('settingsModal').classList.remove('active');
+                });
+
+                // 历史搜索
+                document.getElementById('historySearch').addEventListener('input', () => this.renderHistory());
+
+                // 模态框关闭
+                document.getElementById('settingsModal').addEventListener('click', (e) => {
+                    if (e.target === document.getElementById('settingsModal')) {
+                        document.getElementById('settingsModal').classList.remove('active');
+                    }
+                });
+            },
+
+            validateApiKey(key) {
+                return /^sk-[a-zA-Z0-9]{20,}$/.test(key);
+            },
+
+            handleImageFile(file) {
+                if (file.size > CONFIG.MAX_IMAGE_SIZE) {
+                    alert('❌ 图片过大，请选择小于 5MB 的图片');
+                    return;
+                }
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    this.currentImage = e.target.result;
+                    this.rotation = 0;
+                    this.showPreview();
+                };
+                reader.readAsDataURL(file);
+            },
+
+            showPreview() {
+                document.getElementById('uploadSection').classList.add('hidden');
+                document.getElementById('previewSection').classList.remove('hidden');
+                document.getElementById('previewImage').src = this.currentImage;
+            },
+
+            async startCamera() {
+                try {
+                    document.getElementById('uploadSection').classList.add('hidden');
+                    document.getElementById('cameraSection').classList.remove('hidden');
+                    const stream = await navigator.mediaDevices.getUserMedia({
+                        video: { facingMode: this.facingMode }
+                    });
+                    this.cameraStream = stream;
+                    document.getElementById('cameraVideo').srcObject = stream;
+                } catch (e) {
+                    alert('❌ 无法访问相机: ' + e.message);
+                    document.getElementById('cameraSection').classList.add('hidden');
+                    document.getElementById('uploadSection').classList.remove('hidden');
+                }
+            },
+
+            capturePhoto() {
+                const video = document.getElementById('cameraVideo');
+                const canvas = document.createElement('canvas');
+                canvas.width = video.videoWidth;
+                canvas.height = video.videoHeight;
+                canvas.getContext('2d').drawImage(video, 0, 0);
+                canvas.toBlob((blob) => {
+                    const reader = new FileReader();
+                    reader.onload = (e) => {
+                        this.currentImage = e.target.result;
+                        this.rotation = 0;
+                        this.stopCamera();
+                        this.showPreview();
+                    };
+                    reader.readAsDataURL(blob);
+                });
+            },
+
+            switchCamera() {
+                this.facingMode = this.facingMode === 'environment' ? 'user' : 'environment';
+                this.stopCamera();
+                this.startCamera();
+            },
+
+            stopCamera() {
+                if (this.cameraStream) {
+                    this.cameraStream.getTracks().forEach(t => t.stop());
+                    this.cameraStream = null;
+                }
+                document.getElementById('cameraSection').classList.add('hidden');
+                document.getElementById('uploadSection').classList.remove('hidden');
+            },
+
+            async startBarcode() {
+                try {
+                    document.getElementById('uploadSection').classList.add('hidden');
+                    document.getElementById('barcodeSection').classList.remove('hidden');
+                    const stream = await navigator.mediaDevices.getUserMedia({
+                        video: { facingMode: 'environment' }
+                    });
+                    this.barcodeStream = stream;
+                    document.getElementById('barcodeVideo').srcObject = stream;
+                    this.scanBarcode();
+                } catch (e) {
+                    alert('❌ 无法访问相机: ' + e.message);
+                    document.getElementById('barcodeSection').classList.add('hidden');
+                    document.getElementById('uploadSection').classList.remove('hidden');
+                }
+            },
+
+            async scanBarcode() {
+                const video = document.getElementById('barcodeVideo');
+                const canvas = document.createElement('canvas');
+                const ctx = canvas.getContext('2d');
+                const codeReader = new ZXing.BrowserMultiFormatReader();
+
+                const scanInterval = setInterval(async () => {
+                    if (!this.barcodeStream) {
+                        clearInterval(scanInterval);
+                        return;
+                    }
+                    try {
+                        const result = await codeReader.decodeFromVideoElement(video);
+                        if (result) {
+                            clearInterval(scanInterval);
+                            this.stopBarcode();
+                            alert('✅ 扫码成功: ' + result.text);
+                            // 这里可以调用 API 查询条码对应的食品信息
+                        }
+                    } catch (e) {
+                        // 继续扫描
+                    }
+                }, 500);
+            },
+
+            stopBarcode() {
+                if (this.barcodeStream) {
+                    this.barcodeStream.getTracks().forEach(t => t.stop());
+                    this.barcodeStream = null;
+                }
+                document.getElementById('barcodeSection').classList.add('hidden');
+                document.getElementById('uploadSection').classList.remove('hidden');
+            },
+
+            rotateImage() {
+                this.rotation = (this.rotation + 90) % 360;
+                const img = document.getElementById('previewImage');
+                img.style.transform = `rotate(${this.rotation}deg)`;
+            },
+
+            startCrop() {
+                document.getElementById('previewSection').classList.add('hidden');
+                document.getElementById('cropSection').classList.remove('hidden');
+                const img = document.getElementById('cropImage');
+                img.src = this.currentImage;
+                img.style.transform = `rotate(${this.rotation}deg)`;
+
+                let startX, startY, isDrawing = false;
+                const cropBox = document.getElementById('cropBox');
+
+                img.addEventListener('mousedown', (e) => {
+                    isDrawing = true;
+                    const rect = img.getBoundingClientRect();
+                    startX = e.clientX - rect.left;
+                    startY = e.clientY - rect.top;
+                });
+
+                img.addEventListener('mousemove', (e) => {
+                    if (!isDrawing) return;
+                    const rect = img.getBoundingClientRect();
+                    const x = e.clientX - rect.left;
+                    const y = e.clientY - rect.top;
+                    cropBox.classList.remove('hidden');
+                    cropBox.style.left = Math.min(startX, x) + 'px';
+                    cropBox.style.top = Math.min(startY, y) + 'px';
+                    cropBox.style.width = Math.abs(x - startX) + 'px';
+                    cropBox.style.height = Math.abs(y - startY) + 'px';
+                });
+
+                img.addEventListener('mouseup', () => {
+                    isDrawing = false;
+                    this.cropData = {
+                        x: parseInt(cropBox.style.left),
+                        y: parseInt(cropBox.style.top),
+                        width: parseInt(cropBox.style.width),
+                        height: parseInt(cropBox.style.height)
+                    };
+                });
+            },
+
+            cancelCrop() {
+                document.getElementById('cropSection').classList.add('hidden');
+                document.getElementById('previewSection').classList.remove('hidden');
+                document.getElementById('cropBox').classList.add('hidden');
+            },
+
+            confirmCrop() {
+                if (!this.cropData || this.cropData.width < 10 || this.cropData.height < 10) {
+                    alert('❌ 请选择有效的裁剪区域');
+                    return;
+                }
+                const canvas = document.createElement('canvas');
+                const img = new Image();
+                img.onload = () => {
+                    canvas.width = this.cropData.width;
+                    canvas.height = this.cropData.height;
+                    canvas.getContext('2d').drawImage(img, -this.cropData.x, -this.cropData.y);
+                    canvas.toBlob((blob) => {
+                        const reader = new FileReader();
+                        reader.onload = (e) => {
+                            this.currentImage = e.target.result;
+                            this.cancelCrop();
+                            this.showPreview();
+                        };
+                        reader.readAsDataURL(blob);
+                    });
+                };
+                img.src = this.currentImage;
+            },
+
+            updateProgress(percent, text) {
+                document.getElementById('progressFill').style.width = percent + '%';
+                document.getElementById('loadingStatus').textContent = text;
+            },
+
+            cancelAnalysis() {
+                this.isAnalyzing = false;
+                document.getElementById('loadingSection').classList.add('hidden');
+                document.getElementById('previewSection').classList.remove('hidden');
+            },
+
+            async analyze() {
+                if (!this.currentImage) return;
+                if (!this.apiKey) {
+                    alert('❌ 请先配置 API Key');
+                    return;
+                }
+                if (!this.validateApiKey(this.apiKey)) {
+                    alert('❌ API Key 格式错误');
+                    return;
+                }
+
+                this.isAnalyzing = true;
+                document.getElementById('previewSection').classList.add('hidden');
+                document.getElementById('loadingSection').classList.remove('hidden');
+                document.getElementById('resultsSection').classList.add('hidden');
+                document.getElementById('errorSection').classList.add('hidden');
+
+                try {
+                    this.updateProgress(10, '压缩图片...');
+                    const compressedImage = await this.compressImage(this.currentImage);
+
+                    this.updateProgress(20, '初始化 OCR...');
+                    const worker = await Tesseract.createWorker('chi_sim');
+
+                    this.updateProgress(40, '识别文字中...');
+                    const result = await worker.recognize(compressedImage);
+                    let text = result.data.text.trim();
+                    await worker.terminate();
+
+                    if (!text || text.length < 10) {
+                        throw new Error('OCR 识别失败，请重试或上传更清晰的图片');
+                    }
+
+                    this.updateProgress(70, '调用 AI 分析...');
+                    const analysis = await this.callAPI(text);
+
+                    this.updateProgress(100, '完成');
+                    if (this.isAnalyzing) {
+                        setTimeout(() => this.showResults(analysis), 500);
+                    }
+                } catch (e) {
+                    if (this.isAnalyzing) {
+                        this.showError(e.message);
+                    }
+                } finally {
+                    this.isAnalyzing = false;
+                }
+            },
+
+            async compressImage(dataUrl) {
+                return new Promise((resolve) => {
+                    const img = new Image();
+                    img.onload = () => {
+                        const canvas = document.createElement('canvas');
+                        let width = img.width;
+                        let height = img.height;
+
+                        if (width > CONFIG.IMAGE_MAX_WIDTH || height > CONFIG.IMAGE_MAX_HEIGHT) {
+                            const ratio = Math.min(CONFIG.IMAGE_MAX_WIDTH / width, CONFIG.IMAGE_MAX_HEIGHT / height);
+                            width *= ratio;
+                            height *= ratio;
+                        }
+
+                        canvas.width = width;
+                        canvas.height = height;
+                        const ctx = canvas.getContext('2d');
+
+                        // 灰度化处理
+                        ctx.drawImage(img, 0, 0, width, height);
+                        const imageData = ctx.getImageData(0, 0, width, height);
+                        const data = imageData.data;
+                        for (let i = 0; i < data.length; i += 4) {
+                            const gray = 0.299 * data[i] + 0.587 * data[i + 1] + 0.114 * data[i + 2];
+                            data[i] = data[i + 1] = data[i + 2] = gray;
+                        }
+                        ctx.putImageData(imageData, 0, 0);
+
+                        resolve(canvas.toDataURL('image/jpeg', CONFIG.IMAGE_QUALITY));
+                    };
+                    img.src = dataUrl;
+                });
+            },
+
+            async callAPI(text, retries = 0) {
+                try {
+                    const controller = new AbortController();
+                    const timeout = setTimeout(() => controller.abort(), CONFIG.API_TIMEOUT);
+
+                    const response = await fetch(CONFIG.API_URL, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'Authorization': `Bearer ${this.apiKey}`
+                        },
+                        body: JSON.stringify({
+                            model: CONFIG.MODEL,
+                            messages: [{
+                                role: 'user',
+                                content: `分析这个食品的健康程度，返回 JSON：${text}\n\n返回格式：{"score":0-100,"level":"优秀/良好/一般/较差/很差","ingredients":[{"name":"配料","risk":0-5,"description":"描述"}],"nutrition":{"energy":"值","protein":"值","fat":"值","carbs":"值","sodium":"值"},"advice":["建议1","建议2"]}`
+                            }],
+                            temperature: 0.5,
+                            max_tokens: 1000
+                        }),
+                        signal: controller.signal
+                    });
+
+                    clearTimeout(timeout);
+
+                    if (!response.ok) {
+                        if (response.status === 401) throw new Error('API Key 无效或已过期');
+                        if (response.status === 429) throw new Error('API 请求过于频繁，请稍后重试');
+                        throw new Error(`API 错误: ${response.status}`);
+                    }
+
+                    const data = await response.json();
+                    if (!data.choices || !data.choices[0]) throw new Error('API 返回格式错误');
+
+                    const content = data.choices[0].message.content;
+                    const jsonMatch = content.match(/\{[\s\S]*\}/);
+                    if (!jsonMatch) throw new Error('无法解析 API 返回的 JSON');
+
+                    try {
+                        return JSON.parse(jsonMatch[0]);
+                    } catch (e) {
+                        throw new Error('JSON 解析失败: ' + e.message);
+                    }
+                } catch (e) {
+                    if (e.name === 'AbortError') {
+                        throw new Error('请求超时，请检查网络连接');
+                    }
+                    if (retries < CONFIG.MAX_RETRIES) {
+                        await new Promise(resolve => setTimeout(resolve, Math.pow(2, retries) * 1000));
+                        return this.callAPI(text, retries + 1);
+                    }
+                    throw e;
+                }
+            },
+
+            showResults(analysis) {
+                document.getElementById('loadingSection').classList.add('hidden');
+                document.getElementById('resultsSection').classList.remove('hidden');
+
+                this.currentAnalysis = analysis;
+
+                document.getElementById('scoreNumber').textContent = analysis.score || 0;
+                document.getElementById('scoreLevel').textContent = analysis.level || '未知';
+
+                const ingHtml = (analysis.ingredients || []).map(i =>
+                    `<span class="ingredient-tag risk-${i.risk || 0}">${i.name} <small>${i.risk}/5</small></span>`
+                ).join('');
+                document.getElementById('ingredientsList').innerHTML = ingHtml || '无';
+
+                const nut = analysis.nutrition || {};
+                const nutHtml = `
+                    <div style="padding: 12px; background: #ECFDF5; border-radius: 8px; text-align: center;">
+                        <div style="font-size: 12px; color: #6B7280;">能量</div>
+                        <div style="font-size: 16px; font-weight: 700;">${nut.energy || '-'}</div>
+                    </div>
+                    <div style="padding: 12px; background: #FFFBEB; border-radius: 8px; text-align: center;">
+                        <div style="font-size: 12px; color: #6B7280;">蛋白质</div>
+                        <div style="font-size: 16px; font-weight: 700;">${nut.protein || '-'}</div>
+                    </div>
+                    <div style="padding: 12px; background: #FFFBEB; border-radius: 8px; text-align: center;">
+                        <div style="font-size: 12px; color: #6B7280;">脂肪</div>
+                        <div style="font-size: 16px; font-weight: 700;">${nut.fat || '-'}</div>
+                    </div>
+                    <div style="padding: 12px; background: #FFFBEB; border-radius: 8px; text-align: center;">
+                        <div style="font-size: 12px; color: #6B7280;">碳水</div>
+                        <div style="font-size: 16px; font-weight: 700;">${nut.carbs || '-'}</div>
+                    </div>
+                `;
+                document.getElementById('nutritionGrid').innerHTML = nutHtml;
+
+                const adviceHtml = (analysis.advice || []).map(a =>
+                    `<li style="padding: 12px; background: #ECFDF5; border-left: 4px solid var(--primary); border-radius: 4px;">${a}</li>`
+                ).join('');
+                document.getElementById('adviceList').innerHTML = adviceHtml || '<li>无建议</li>';
+
+                this.addToHistory(analysis);
+            },
+
+            showError(message) {
+                document.getElementById('loadingSection').classList.add('hidden');
+                document.getElementById('errorSection').classList.remove('hidden');
+                document.getElementById('errorMessage').textContent = message;
+                document.getElementById('previewSection').classList.remove('hidden');
+            },
+
+            addToHistory(analysis) {
+                this.history.unshift({
+                    id: Date.now(),
+                    timestamp: new Date().toISOString(),
+                    ...analysis
+                });
+                if (this.history.length > 100) this.history.pop();
+                this.saveData();
+            },
+
+            renderHistory() {
+                const search = document.getElementById('historySearch').value.toLowerCase();
+                const filtered = this.history.filter(h =>
+                    (h.level || '').toLowerCase().includes(search)
+                );
+
+                if (filtered.length === 0) {
+                    document.getElementById('historyList').innerHTML = '<li style="text-align: center; color: #6B7280; padding: 20px;">暂无记录</li>';
+                    return;
+                }
+
+                const html = filtered.map(item => `
+                    <li style="padding: 12px; background: var(--gray-100); border-radius: 8px; cursor: pointer; margin-bottom: 8px; display: flex; justify-content: space-between; align-items: center;" onclick="app.viewHistory(${item.id})">
+                        <div>
+                            <div style="font-weight: 600;">${item.level || '未知'}</div>
+                            <div style="font-size: 12px; color: #6B7280;">${new Date(item.timestamp).toLocaleDateString()}</div>
+                        </div>
+                        <div style="font-size: 24px; font-weight: 700; color: var(--primary);">${item.score || 0}</div>
+                    </li>
+                `).join('');
+                document.getElementById('historyList').innerHTML = html;
+            },
+
+            viewHistory(id) {
+                const item = this.history.find(h => h.id === id);
+                if (item) {
+                    this.currentAnalysis = item;
+                    this.showResults(item);
+                    document.querySelector('[data-tab="scan"]').click();
+                }
+            },
+
+            share() {
+                if (!this.currentAnalysis) return;
+                const text = `我的食品分析结果：\n评分: ${this.currentAnalysis.score}/100\n等级: ${this.currentAnalysis.level}\n\n使用"智食鉴"应用分析你的食品健康程度`;
+                if (navigator.share) {
+                    navigator.share({ title: '智食鉴', text });
+                } else {
+                    alert(text);
+                }
+            }
+        };
+
+        document.addEventListener('DOMContentLoaded', () => app.init());
+    </script>
+</body>
+</html>
