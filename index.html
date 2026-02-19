@@ -833,32 +833,32 @@ const CONFIG = {
     }
 };
 
-        // ==================== 状态 ====================
-        const state = {
-            apiKey: '', // DeepSeek Key
-            massSpecApiKey: '', // 质谱 OCR Key
-            currentImage: null,
-            currentAnalysis: null,
-            history: [],
-            cameraStream: null,
-            facingMode: 'environment',
-            theme: 'light',
-            offlineMode: false,
-            cropStartX: 0,
-            cropStartY: 0,
-            isCropping: false,
-            cropMode: 'rect', // 'rect', 'brush', 'eraser'
-            brushPoints: [],
-            isDrawing: false,
-            // 新增功能状态
-            energyUnit: 'kcal', // 'kcal' 或 'kj'
-            useDeepSeekOCR: true,
-            useDeepSeekR1: false,
-            netWeight: '',
-            recognitionMode: 'ocr' // 'ocr' 或 'barcode'
-        };
+// ==================== 状态 ====================
+const state = {
+    apiKey: '', // DeepSeek Key
+    massSpecApiKey: '', // 质谱 OCR Key
+    currentImage: null,
+    currentAnalysis: null,
+    history: [],
+    cameraStream: null,
+    facingMode: 'environment',
+    theme: 'light',
+    offlineMode: false,
+    cropStartX: 0,
+    cropStartY: 0,
+    isCropping: false,
+    cropMode: 'rect', // 'rect', 'brush', 'eraser'
+    brushPoints: [],
+    isDrawing: false,
+    // 新增功能状态
+    energyUnit: 'kcal', // 'kcal' 或 'kj'
+    useDeepSeekOCR: true,
+    useDeepSeekR1: false,
+    netWeight: '',
+    recognitionMode: 'ocr' // 'ocr' 或 'barcode'
+};
 
-      // ==================== 工具函数 ====================
+// ==================== 工具函数 ====================
 const Utils = {
     escapeHtml(text) {
         const map = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;' };
