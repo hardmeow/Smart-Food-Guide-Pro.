@@ -1681,7 +1681,6 @@ ${text}
             document.getElementById('resultsSection').classList.add('hidden');
             document.getElementById('errorSection').classList.remove('hidden');
             document.getElementById('errorMessage').textContent = message;
-            document.getElementById('previewSection').classList.remove('hidden');
         }
 
         function showOCREdit(text) {
@@ -1689,7 +1688,8 @@ ${text}
             document.getElementById('loadingSection').classList.add('hidden');
             document.getElementById('editOCRSection').classList.remove('hidden');
             document.getElementById('ocrTextInput').value = text;
-            document.getElementById('netWeightInput').value = '';
+            const netWeightInput = document.getElementById('editOCRSection').querySelector('input[placeholder*="净含量"]');
+            if (netWeightInput) netWeightInput.value = '';
         }
 
         function addDetailedProgress(message) {
@@ -1796,7 +1796,8 @@ ${text}
 
         async function submitOCREdit() {
             const ocrText = document.getElementById('ocrTextInput').value.trim();
-            state.netWeight = document.getElementById('netWeightInput').value.trim();
+            const netWeightInput = document.getElementById('editOCRSection').querySelector('input[type="text"]');
+            state.netWeight = netWeightInput ? netWeightInput.value.trim() : '';
             
             if (!ocrText) {
                 Utils.showNotification('❌ 请输入识别内容', 'error');
