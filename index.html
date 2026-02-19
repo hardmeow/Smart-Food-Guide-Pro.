@@ -967,19 +967,17 @@ function updateProgress(percentage, statusText) {
     // ==================== 质谱 OCR 模块（GLM-OCR 最终修复版） ====================
 
 const OCRModule = {
-
-
         // 核心识别函数
         async recognize(imageData) {
             if (!state.massSpecApiKey) {
                 throw new Error('未配置 GLM-OCR Token（请在设置中填写）');
             }
             
-            // 1. 提取纯 Base64 数据
+            // 1. 确保 Base64 包含完整的 Data URL 格式
             let base64Image = imageData;
-if (!imageData.startsWith('data:')) {
-    base64Image = `data:image/png;base64,${imageData}`;
-}
+            if (!imageData.startsWith('data:')) {
+                base64Image = `data:image/png;base64,${imageData}`;
+            }
 
             updateProgress(20, '正在调用 GLM-OCR...');
 
@@ -1156,10 +1154,12 @@ if (!imageData.startsWith('data:')) {
 
 [任务要求]
 1. 从图片中提取配料表和营养成分表。
-2. **核心计算**：
+2. **识别生产厂家/品牌**，并基于品牌知名度、历史记录、行业声誉等进行可信度评估（0-100分）。
+3. **核心计算**：
    - 如果识别到净含量（或用户提供：${netWeight}），请计算整包的总能量、蛋白质、脂肪、碳水和钠。
    - 对比每100g标准值与整包总值。
-3. 能量单位请使用：${unit}。
+   - 计算整包总热量（大卡）。
+4. 能量单位请使用：${unit}。
 
 [输出格式]
 必须只返回 JSON，格式如下：
@@ -1167,6 +1167,8 @@ if (!imageData.startsWith('data:')) {
   "score": 85,
   "level": "优秀",
   "description": "描述",
+  "totalCalories": "整包总热量（大卡）",
+  "manufacturerTrust": {"score": 85, "level": "可信", "description": "基于品牌知名度、历史记录等的可信度分析"},
   "netWeightUsed": "${netWeight}",
   "nutritionStandard": {"label": "每100g/ml标准", "energy": "xxx ${state.energyUnit}", "protein": "xxx g", "fat": "xxx g", "carbs": "xxx g", "sodium": "xxx mg"},
   "nutritionTotal": {"label": "整包总计", "energy": "xxx ${state.energyUnit}", "protein": "xxx g", "fat": "xxx g", "carbs": "xxx g", "sodium": "xxx mg"},
@@ -1184,10 +1186,12 @@ if (!imageData.startsWith('data:')) {
 
 [任务要求]
 1. 识别并列出主要配料及其风险等级（0-5）。
-2. **核心计算**：
+2. **识别生产厂家/品牌**，并基于品牌知名度、历史记录、行业声誉等进行可信度评估（0-100分）。
+3. **核心计算**：
    - 计算“整包/整瓶”食品所含的总热量、蛋白质、脂肪、碳水化合物和钠。
    - 对比“整包总值”与“每100g/ml标准值”。
-3. 给出总体健康评分和建议。
+   - 计算整包总热量（大卡）。
+4. 给出总体健康评分和建议。
 
 [输出格式]
 必须只返回 JSON，格式如下：
@@ -1195,6 +1199,8 @@ if (!imageData.startsWith('data:')) {
   "score": 85,
   "level": "优秀",
   "description": "描述",
+  "totalCalories": "整包总热量（大卡）",
+  "manufacturerTrust": {"score": 85, "level": "可信", "description": "基于品牌知名度、历史记录等的可信度分析"},
   "netWeightUsed": "${netWeight}",
   "nutritionStandard": {"label": "每100g/ml标准", "energy": "xxx ${state.energyUnit}", "protein": "xxx g", "fat": "xxx g", "carbs": "xxx g", "sodium": "xxx mg"},
   "nutritionTotal": {"label": "整包总计", "energy": "xxx ${state.energyUnit}", "protein": "xxx g", "fat": "xxx g", "carbs": "xxx g", "sodium": "xxx mg"},
@@ -1637,7 +1643,24 @@ ${text}
             const score = analysis.score || 0;
             document.getElementById('scoreNumber').textContent = score;
             document.getElementById('scoreLevel').textContent = analysis.level || '未知';
-            document.getElementById('scoreDescription').textContent = analysis.description || '';
+            
+            // 添加总热量和厂家可信度显示
+            let extraInfo = '';
+            if (analysis.totalCalories) {
+                extraInfo += `<div style="margin-top: 8px; padding: 8px; background: var(--warning-light); border-radius: 6px; font-size: 14px; color: #B45309;">
+                    <strong>🔥 总热量：</strong>${analysis.totalCalories}
+                </div>`;
+            }
+            if (analysis.manufacturerTrust) {
+                const trust = analysis.manufacturerTrust;
+                const trustColor = trust.score >= 80 ? 'var(--primary-dark)' : trust.score >= 60 ? '#B45309' : '#DC2626';
+                const trustBg = trust.score >= 80 ? 'var(--primary-light)' : trust.score >= 60 ? 'var(--warning-light)' : 'var(--danger-light)';
+                extraInfo += `<div style="margin-top: 8px; padding: 8px; background: ${trustBg}; border-radius: 6px; font-size: 14px; color: ${trustColor};">
+                    <strong>🏭 厂家可信度：</strong>${trust.score}/100 (${trust.level})<br>
+                    <small style="opacity: 0.8;">${trust.description}</small>
+                </div>`;
+            }
+            document.getElementById('scoreDescription').innerHTML = (analysis.description || '') + extraInfo;
             document.documentElement.style.setProperty('--score-percentage', score);
 
             if (analysis.ingredients && analysis.ingredients.length > 0) {
@@ -1953,6 +1976,12 @@ ${text}
             });
 
             document.getElementById('submitEditBtn').addEventListener('click', submitOCREdit);
+
+            // 重新扫描按钮
+            document.getElementById('rescanBtn').addEventListener('click', () => {
+                document.getElementById('resultsSection').classList.add('hidden');
+                document.getElementById('previewSection').classList.remove('hidden');
+            });
 
             // 改进按钮
             document.getElementById('improveBtn').addEventListener('click', () => {
