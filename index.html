@@ -162,16 +162,25 @@
         }
 
         .card {
-            background: var(--white);
-            border-radius: 12px;
-            padding: 20px;
-            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
-            animation: slideUp 0.3s ease-out;
+            background: rgba(255, 255, 255, 0.8);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            border-radius: 16px;
+            padding: 24px;
+            box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.05), 0 8px 10px -6px rgba(0, 0, 0, 0.05);
+            animation: slideUp 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+            transition: transform 0.3s ease, box-shadow 0.3s ease;
+        }
+
+        .card:hover {
+            box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
         }
 
         body.dark-mode .card {
-            background: var(--gray-800);
-            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+            background: rgba(31, 41, 55, 0.8);
+            border-color: rgba(255, 255, 255, 0.1);
+            box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.3);
         }
 
         @keyframes slideUp {
@@ -317,41 +326,45 @@
         .hidden { display: none !important; }
 
         .ingredient-tag {
-            display: inline-flex;
-            align-items: center;
-            gap: 6px;
-            padding: 8px 12px;
-            border-radius: 20px;
-            font-size: 12px;
+            padding: 10px 14px;
+            border-radius: 12px;
+            font-size: 13px;
             font-weight: 600;
             cursor: pointer;
-            transition: all 0.3s;
-            border: 2px solid transparent;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            text-align: center;
+            border: 1px solid transparent;
+            position: relative;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+            gap: 2px;
         }
 
         .ingredient-tag:hover {
-            transform: scale(1.05);
+            transform: translateY(-3px) scale(1.05);
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
         }
 
-        .ingredient-tag.risk-0,
-        .ingredient-tag.risk-1 {
-            background: var(--primary-light);
-            color: var(--primary-dark);
-            border-color: var(--primary);
+        .ingredient-tag.risk-0 { background: #ECFDF5; color: #059669; border-bottom: 3px solid #10B981; }
+        .ingredient-tag.risk-1 { background: #F0FDF4; color: #16A34A; border-bottom: 3px solid #22C55E; }
+        .ingredient-tag.risk-2 { background: #FFFBEB; color: #D97706; border-bottom: 3px solid #F59E0B; }
+        .ingredient-tag.risk-3 { background: #FFF7ED; color: #EA580C; border-bottom: 3px solid #FB923C; }
+        .ingredient-tag.risk-4 { background: #FEF2F2; color: #DC2626; border-bottom: 3px solid #EF4444; }
+        .ingredient-tag.risk-5 { background: #450A0A; color: #FEE2E2; border-bottom: 3px solid #7F1D1D; }
+
+        .risk-bar {
+            height: 4px;
+            width: 100%;
+            background: var(--gray-200);
+            border-radius: 2px;
+            margin-top: 4px;
+            overflow: hidden;
         }
 
-        .ingredient-tag.risk-2,
-        .ingredient-tag.risk-3 {
-            background: var(--warning-light);
-            color: #B45309;
-            border-color: var(--warning);
-        }
-
-        .ingredient-tag.risk-4,
-        .ingredient-tag.risk-5 {
-            background: var(--danger-light);
-            color: #DC2626;
-            border-color: var(--danger);
+        .risk-bar-fill {
+            height: 100%;
+            transition: width 1s ease-out;
         }
 
         .alert {
@@ -821,7 +834,7 @@ const CONFIG = {
     MAX_RETRIES: 2,
     TIMEOUT: 30000,
     MAX_IMAGE_SIZE: 10 * 1024 * 1024, // GLM-OCR支持单图≤10MB，调整上限
-    IMAGE_QUALITY: 0.8,
+    IMAGE_QUALITY: 0.95, // 提高画质，确保OCR准确度
     // 新增GLM-OCR专属配置（可选，也可以放state里）
     GLM_OCR_MODEL: 'glm-ocr', // GLM-OCR固定模型值
     // 原有配料风险配置保留
@@ -871,18 +884,28 @@ const Utils = {
             const img = new Image();
             img.onload = () => {
                 const canvas = document.createElement('canvas');
+                // 不再限制 1200px，保持原始比例，除非图片过大
                 let width = img.width;
                 let height = img.height;
-
-                if (width > 1200) {
-                    height = (height * 1200) / width;
-                    width = 1200;
+                
+                // 仅当图片超过 4000px 时才进行适度缩小，以防浏览器崩溃
+                const MAX_DIM = 4000;
+                if (width > MAX_DIM || height > MAX_DIM) {
+                    if (width > height) {
+                        height = (height * MAX_DIM) / width;
+                        width = MAX_DIM;
+                    } else {
+                        width = (width * MAX_DIM) / height;
+                        height = MAX_DIM;
+                    }
                 }
 
                 canvas.width = width;
                 canvas.height = height;
 
                 const ctx = canvas.getContext('2d');
+                ctx.imageSmoothingEnabled = true;
+                ctx.imageSmoothingQuality = 'high';
                 ctx.drawImage(img, 0, 0, width, height);
 
                 canvas.toBlob(callback, 'image/jpeg', CONFIG.IMAGE_QUALITY);
@@ -1102,8 +1125,9 @@ const OCRModule = {
                         body: JSON.stringify({
                             model: model,
                             messages: [{ role: 'user', content: prompt }],
-                            temperature: state.useDeepSeekR1 ? undefined : 0.5,
-                            max_tokens: 2000
+                            temperature: state.useDeepSeekR1 ? undefined : 1.0,
+                            max_tokens: 4000, // 统一提升到 4000，防止超长 JSON 截断
+                            response_format: state.useDeepSeekR1 ? undefined : { type: 'json_object' }
                         }),
                         signal: controller.signal
                     });
@@ -1125,7 +1149,15 @@ const OCRModule = {
                     if (!data.choices || !data.choices[0]) {
                         throw new Error('DeepSeek API 返回格式错误');
                     }
-                    return data.choices[0].message.content;
+                    
+                    let content = data.choices[0].message.content;
+                    
+                    // 处理思考模式：记录reasoning_content但只返回content
+                    if (state.useDeepSeekR1 && data.choices[0].message.reasoning_content) {
+                        console.log('思考过程:', data.choices[0].message.reasoning_content);
+                    }
+                    
+                    return content;
                 } catch (error) {
                     if (error.name === 'AbortError') {
                         throw new Error('DeepSeek 请求超时，请检查网络连接');
@@ -1138,13 +1170,13 @@ const OCRModule = {
                 }
             },
 
-            async analyzeHealth(ingredients, nutrition) {
+            async analyzeHealth(ingredients, nutrition, retryCount = 0) {
                 updateProgress(75, '分析健康程度...');
                 const netWeight = state.netWeight || '未提供';
                 const unit = state.energyUnit === 'kcal' ? '大卡 (kcal)' : '千焦 (kJ)';
                 
                 const cacheKey = `${ingredients.substring(0, 50)}_${nutrition.substring(0, 50)}_${netWeight}_${state.energyUnit}`;
-                if (this.cache[cacheKey]) {
+                if (this.cache[cacheKey] && retryCount === 0) {
                     return this.cache[cacheKey];
                 }
 
@@ -1153,14 +1185,14 @@ const OCRModule = {
                     prompt = `你是一个专业的食品营养与健康分析专家。
 由于用户选择了条形码/自动识别模式，请你通过视觉识别（如果 API 支持图片）或根据上下文推断图片中的食品包装信息。
 
-[任务要求]
-1. 从图片中提取配料表和营养成分表。
-2. **识别生产厂家/品牌**，并基于品牌知名度、历史记录、行业声誉等进行可信度评估（0-100分）。
-3. **核心计算**：
-   - 如果识别到净含量（或用户提供：${netWeight}），请计算整包的总能量、蛋白质、脂肪、碳水和钠。
-   - 对比每100g标准值与整包总值。
-   - 计算整包总热量（大卡）。
-4. 能量单位请使用：${unit}。
+	[任务要求]
+	1. **极致拆解配料表**：从图片中提取所有配料。**严禁合并归类**（如：严禁只写“食品添加剂”或“多种香辛料”），必须将每个具体的配料、添加剂（包括 E 编号对应的具体名称）作为独立的项列出。即使配料很多，也必须全部罗列。
+	2. **识别生产厂家/品牌**：基于品牌知名度、历史记录、行业声誉等进行可信度评估（0-100分）。
+	3. **核心计算**：
+	   - 如果识别到净含量（或用户提供：${netWeight}），请计算整包的总能量、蛋白质、脂肪、碳水和钠。
+	   - 对比每100g标准值与整包总值。
+	   - 计算整包总热量（大卡）。
+	4. 能量单位请使用：${unit}。
 
 [输出格式]
 必须只返回 JSON，格式如下：
@@ -1185,15 +1217,56 @@ const OCRModule = {
 - 产品的总净含量：${netWeight}
 - 用户要求的能量单位：${unit}
 
-[任务要求]
-1. 识别并列出主要配料及其风险等级（0-5）。
-2. **识别生产厂家/品牌**，并基于品牌知名度、历史记录、行业声誉等进行可信度评估（0-100分）。
-3. **核心计算**：
-   - 计算“整包/整瓶”食品所含的总热量、蛋白质、脂肪、碳水化合物和钠。
-   - 对比“整包总值”与“每100g/ml标准值”。
-   - 计算整包总热量（大卡）。
-4. 给出总体健康评分和建议。
+	[任务要求]
+	1. **极致拆解配料表**：识别并列出所有配料及其风险等级（0-5）。**严禁合并归类**（如：严禁只写“食品添加剂”或“多种香辛料”），必须将每个具体的配料、添加剂（包括 E 编号对应的具体名称）作为独立的项列出。即使配料很多，也必须全部罗列。
+	2. **识别生产厂家/品牌**：基于品牌知名度、历史记录、行业声誉等进行可信度评估（0-100分）。
+	3. **核心计算**：
+	   - 计算“整包/整瓶”食品所含的总热量、蛋白质、脂肪、碳水化合物和钠。
+	   - 对比“整包总值”与“每100g/ml标准值”。
+	   - 计算整包总热量（大卡）。
+	4. 给出总体健康评分和建议。
+评分标准细则：
 
+【成分构成 - 60分】
+
+基础原料质量（20分）：第一位天然全食物+20，第一位精制原料+10，第一位水/糖/油+0，第一位起酥油/人造奶油-10
+
+糖分来源（15分）：无添加糖+15，糖排名后半段+10，糖排名前三或多种糖+0，含非糖甜味剂-5
+
+脂肪来源（15分）：健康非氢化植物油+15，普通植物油+10，油脂来源不明或高饱和脂肪+0，含氢化植物油/代可可脂/植脂末-10
+
+钠含量预判（10分）：无盐或盐排最后+10，盐排中段+5，盐或含钠调味品排前三+0
+
+【营养风险 - 30分】
+
+反式脂肪酸（10分）：确认无反式+10，含氢化油但标0反式+0，明确含氢化植物油或反式>0.3g-20
+
+饱和脂肪与胆固醇（10分）：饱和脂肪低+10，天然饱和脂肪来源+5，大量椰子油/棕榈油/黄油+0
+
+膳食纤维与蛋白质（10分）：高纤维/高蛋白原料靠前+10，少量全谷物+5，无纤维来源+0
+
+【添加剂与加工程度 - 10分】
+
+添加剂数量（5分）：0添加剂+5，1-3种+3，4-6种+1，>6种+0
+
+添加剂类型（5分）：仅厨房调料+5，必要防腐剂/抗氧化剂+3，含人工色素/甜味剂/增味剂+0，含亚硝酸盐-5
+
+【分数段详细参考】
+
+95-100分（极优）：配料表只有1-3种天然食材，无任何添加剂，无糖无盐或含量极微，第一位是天然全食物
+
+85-94分（优）：配料表干净（≤5种），可能有1种必要添加剂（如小苏打），糖/盐排名靠后，脂肪来源健康
+
+75-84分（良）：配料表较简单，可能有2-3种添加剂，糖/盐排名中后段，使用普通植物油，无反式脂肪风险
+
+60-74分（中）：配料表中等长度，添加剂4-5种，糖/盐排名中段，油脂来源可能含棕榈油，但无反式
+
+40-59分（差）：配料表较长，添加剂>5种，糖/盐排名靠前，含人造奶油/起酥油但无反式标识
+
+20-39分（很差）：含氢化植物油/代可可脂/植脂末，或糖/油/盐排前三，或含大量人工色素甜味剂
+
+0-19分（极差）：明确含部分氢化植物油，或亚硝酸盐+多种人工添加剂+高糖高脂高盐组合
+注意最终只要返回分数，不用解释
 [输出格式]
 必须只返回 JSON，格式如下，即使用户输入的不完整，有错误，你也必须使用格式回复，禁止回复其他内容，如好的，知道了，对不起你输入的有问题等，只要包括以下内容，绝对不能不回复：
 {
@@ -1210,16 +1283,95 @@ const OCRModule = {
 }`;
                 }
 
-                const response = await this.callDeepSeek(prompt);
                 try {
-                    const jsonMatch = response.match(/\{[\s\S]*\}/);
-                    if (!jsonMatch) throw new Error('未找到 JSON');
-                    const result = JSON.parse(jsonMatch[0]);
+                    console.log('[DEBUG] 开始调用DeepSeek...');
+                    const response = await this.callDeepSeek(prompt);
+                    console.log('[DEBUG] DeepSeek响应长度:', response ? response.length : 0);
+                    console.log('[DEBUG] DeepSeek响应内容:', response);
+                    
+                    // 检查空content
+                    if (!response || response.trim() === '') {
+                        throw new Error('API返回空内容');
+                    }
+                    
+                    // 提取JSON（支持markdown代码块）
+                    let jsonText = response;
+                    const codeBlockMatch = response.match(/```json\s*([\s\S]*?)\s*```/);
+                    if (codeBlockMatch) {
+                        console.log('[DEBUG] 检测到markdown代码块');
+                        jsonText = codeBlockMatch[1];
+                    } else {
+                        const jsonMatch = response.match(/\{[\s\S]*\}/);
+                        if (jsonMatch) {
+                            console.log('[DEBUG] 检测到裸JSON');
+                            jsonText = jsonMatch[0];
+                        } else {
+                            console.error('[DEBUG] 未找到JSON，响应内容:', response);
+                            throw new Error('响应中未找到JSON格式');
+                        }
+                    }
+                    
+                    console.log('[DEBUG] 提取的JSON文本长度:', jsonText.length);
+                    console.log('[DEBUG] JSON文本前100字符:', jsonText.substring(0, 100));
+                    
+                    // 解析JSON
+                    console.log('[DEBUG] 开始解析JSON...');
+                    let result;
+                    try {
+                        result = JSON.parse(jsonText);
+                    } catch (jsonErr) {
+                        console.warn('[DEBUG] 初次解析失败，尝试修复截断的 JSON...', jsonErr.message);
+                        // 尝试修复由于 token 限制导致的截断
+                        // 逻辑：补齐未闭合的数组和对象
+                        let fixedJson = jsonText.trim();
+                        
+                        // 如果最后是逗号，先删掉
+                        if (fixedJson.endsWith(',')) fixedJson = fixedJson.slice(0, -1);
+                        
+                        // 统计未闭合的括号
+                        const openBraces = (fixedJson.match(/\{/g) || []).length;
+                        const closeBraces = (fixedJson.match(/\}/g) || []).length;
+                        const openBrackets = (fixedJson.match(/\[/g) || []).length;
+                        const closeBrackets = (fixedJson.match(/\]/g) || []).length;
+                        
+                        // 补齐括号
+                        fixedJson += ']'.repeat(Math.max(0, openBrackets - closeBrackets));
+                        fixedJson += '}'.repeat(Math.max(0, openBraces - closeBraces));
+                        
+                        try {
+                            result = JSON.parse(fixedJson);
+                            console.log('[DEBUG] JSON 截断修复成功！');
+                        } catch (retryErr) {
+                            console.error('[DEBUG] 修复后依然解析失败:', fixedJson);
+                            throw jsonErr; // 抛出原始错误
+                        }
+                    }
+                    console.log('[DEBUG] JSON解析成功');
+                    
+                    // 验证必需字段
+                    if (!result.score || !result.ingredients) {
+                        console.error('[DEBUG] 缺少字段, result:', result);
+                        throw new Error('JSON缺少必需字段（score/ingredients）');
+                    }
+                    
+                    console.log('[DEBUG] 验证通过，score:', result.score);
                     this.cache[cacheKey] = result;
                     return result;
+                    
                 } catch (e) {
-                    console.error('Parse error:', response);
-                    throw new Error('分析结果解析失败，请重试');
+                    // 重试机制
+                    if (retryCount < 3) {
+                        const nextRetry = retryCount + 1;
+                        console.warn(`[DEBUG] 解析失败，正在进行第 ${nextRetry} 次重试... 错误:`, e.message);
+                        updateProgress(75 + retryCount * 5, `解析失败，重试 ${nextRetry}/3... (${e.message})`);
+                        await new Promise(r => setTimeout(r, 2000)); // 增加等待时间
+                        return this.analyzeHealth(ingredients, nutrition, nextRetry);
+                    }
+                    
+                    // 3次都失败，显示详细错误
+                    console.error('API响应:', response);
+                    console.error('解析错误:', e);
+                    throw new Error(`分析失败（已重试3次）\n原因：${e.message}\n请截图此错误并检查控制台`);
                 }
             },
 
@@ -1333,12 +1485,14 @@ ${text}
             }
         };
 
-        // ==================== 裁剪功能 ====================
+        // ==================== 裁剪功能 (高清重构版) ====================
         const CropModule = {
             canvas: null,
             ctx: null,
             img: null,
             scale: 1,
+            offCanvas: null, // 用于存储原始涂抹蒙版
+            offCtx: null,
             
             startCrop() {
                 document.getElementById('previewSection').classList.add('hidden');
@@ -1353,6 +1507,14 @@ ${text}
                     this.scale = containerWidth / this.img.width;
                     this.canvas.width = containerWidth;
                     this.canvas.height = this.img.height * this.scale;
+                    
+                    // 初始化离屏画布（用于高清涂抹蒙版）
+                    this.offCanvas = document.createElement('canvas');
+                    this.offCanvas.width = this.img.width;
+                    this.offCanvas.height = this.img.height;
+                    this.offCtx = this.offCanvas.getContext('2d');
+                    this.offCtx.lineCap = 'round';
+                    this.offCtx.lineJoin = 'round';
                     
                     state.cropMode = 'rect';
                     state.brushPoints = [];
@@ -1373,9 +1535,11 @@ ${text}
                 modes.forEach(m => {
                     const btn = document.getElementById('mode' + m);
                     if (state.cropMode === m.toLowerCase()) {
-                        btn.classList.replace('btn-secondary', 'btn-primary');
+                        btn.className = 'btn btn-primary';
+                        btn.style.boxShadow = '0 0 10px var(--primary-light)';
                     } else {
-                        btn.classList.replace('btn-primary', 'btn-secondary');
+                        btn.className = 'btn btn-secondary';
+                        btn.style.boxShadow = 'none';
                     }
                 });
             },
@@ -1385,9 +1549,12 @@ ${text}
                 
                 const getPos = (e) => {
                     const rect = this.canvas.getBoundingClientRect();
-                    const x = (e.touches ? e.touches[0].clientX : e.clientX) - rect.left;
-                    const y = (e.touches ? e.touches[0].clientY : e.clientY) - rect.top;
-                    return { x, y };
+                    const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+                    const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+                    return {
+                        x: clientX - rect.left,
+                        y: clientY - rect.top
+                    };
                 };
 
                 const start = (e) => {
@@ -1436,11 +1603,13 @@ ${text}
                 document.getElementById('modeRect').onclick = () => { state.cropMode = 'rect'; this.updateUI(); };
                 document.getElementById('modeBrush').onclick = () => { state.cropMode = 'brush'; this.updateUI(); };
                 document.getElementById('modeEraser').onclick = () => { state.cropMode = 'eraser'; this.updateUI(); };
+                
                 const clearBtn = document.getElementById('clearBrush');
                 if (clearBtn) {
                     clearBtn.onclick = () => { 
                         state.brushPoints = []; 
                         state.cropStartX = state.cropStartY = state.cropEndX = state.cropEndY = 0;
+                        this.offCtx.clearRect(0, 0, this.offCanvas.width, this.offCanvas.height);
                         this.draw(); 
                     };
                 }
@@ -1451,22 +1620,22 @@ ${text}
             draw() {
                 if (!this.ctx || !this.img) return;
                 
-                // 清除画布
                 this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
                 
-                // 绘制原图
-                this.ctx.globalAlpha = 1.0;
+                // 1. 绘制底图
                 this.ctx.drawImage(this.img, 0, 0, this.canvas.width, this.canvas.height);
                 
-                // 绘制半透明遮罩
-                this.ctx.fillStyle = 'rgba(0, 0, 0, 0.5)';
+                // 2. 绘制全屏半透明遮罩
+                this.ctx.fillStyle = 'rgba(0, 0, 0, 0.6)';
                 this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
 
-                // 准备剪裁区域（高亮部分）
+                // 3. 绘制高亮区域
                 this.ctx.save();
+                
+                // 创建剪裁路径
                 this.ctx.beginPath();
                 
-                // 1. 矩形区域
+                // 矩形框选路径
                 if (state.cropStartX !== state.cropEndX) {
                     this.ctx.rect(
                         Math.min(state.cropStartX, state.cropEndX),
@@ -1476,147 +1645,177 @@ ${text}
                     );
                 }
                 
-                // 2. 涂抹区域
+                // 涂抹路径 (Brush)
                 state.brushPoints.forEach(path => {
-                    if (path.type === 'brush') {
+                    if (path.type === 'brush' && path.points.length > 0) {
                         this.ctx.moveTo(path.points[0].x, path.points[0].y);
-                        path.points.forEach(p => this.ctx.lineTo(p.x, p.y));
+                        for(let i=1; i<path.points.length; i++) {
+                            this.ctx.lineTo(path.points[i].x, path.points[i].y);
+                        }
                     }
                 });
                 
-                if (state.cropStartX !== state.cropEndX || state.brushPoints.some(p => p.type === 'brush')) {
+                // 应用剪裁
+                if (this.ctx.lineWidth > 0) { // 简单判断是否有路径
                     this.ctx.clip();
                     
-                    // 擦除部分（从剪裁区域中减去）
+                    // 在剪裁区域内应用橡皮擦 (Eraser)
                     state.brushPoints.forEach(path => {
-                        if (path.type === 'eraser') {
+                        if (path.type === 'eraser' && path.points.length > 0) {
                             this.ctx.globalCompositeOperation = 'destination-out';
                             this.ctx.beginPath();
-                            this.ctx.lineWidth = 20;
-                            this.ctx.lineCap = 'round';
-                            this.ctx.lineJoin = 'round';
+                            this.ctx.lineWidth = 30; // 橡皮擦宽度
                             this.ctx.moveTo(path.points[0].x, path.points[0].y);
-                            path.points.forEach(p => this.ctx.lineTo(p.x, p.y));
+                            for(let i=1; i<path.points.length; i++) {
+                                this.ctx.lineTo(path.points[i].x, path.points[i].y);
+                            }
                             this.ctx.stroke();
                             this.ctx.globalCompositeOperation = 'source-over';
                         }
                     });
 
-                    // 在剪裁区域重新绘制原图（高亮显示）
-                    this.ctx.globalAlpha = 1.0;
+                    // 重新绘制原图（只在剪裁区可见）
                     this.ctx.drawImage(this.img, 0, 0, this.canvas.width, this.canvas.height);
                 }
                 this.ctx.restore();
 
-                // 绘制辅助边框
+                // 4. 绘制矩形边框和控制点
                 if (state.cropStartX !== state.cropEndX) {
                     this.ctx.strokeStyle = '#10B981';
                     this.ctx.lineWidth = 2;
-                    this.ctx.strokeRect(
-                        Math.min(state.cropStartX, state.cropEndX),
-                        Math.min(state.cropStartY, state.cropEndY),
-                        Math.abs(state.cropEndX - state.cropStartX),
-                        Math.abs(state.cropEndY - state.cropStartY)
-                    );
+                    const rx = Math.min(state.cropStartX, state.cropEndX);
+                    const ry = Math.min(state.cropStartY, state.cropEndY);
+                    const rw = Math.abs(state.cropEndX - state.cropStartX);
+                    const rh = Math.abs(state.cropEndY - state.cropStartY);
+                    this.ctx.strokeRect(rx, ry, rw, rh);
+                    
+                    // 绘制角落装饰
+                    this.ctx.fillStyle = '#10B981';
+                    const s = 6;
+                    this.ctx.fillRect(rx-s, ry-s, s*2, s*2);
+                    this.ctx.fillRect(rx+rw-s, ry-s, s*2, s*2);
+                    this.ctx.fillRect(rx-s, ry+rh-s, s*2, s*2);
+                    this.ctx.fillRect(rx+rw-s, ry+rh-s, s*2, s*2);
                 }
             },
 
-            confirmCrop() {
-                // 创建临时画布进行实际裁剪
-                const tempCanvas = document.createElement('canvas');
-                const tempCtx = tempCanvas.getContext('2d');
+            confirm() {
+                // 1. 寻找最小包含矩形
+                let minX = this.img.width, minY = this.img.height, maxX = 0, maxY = 0;
+                let hasSelection = false;
                 
-                // 计算实际包含所有内容的边界框
-                let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
-                let hasContent = false;
-
+                // 检查矩形框
                 if (state.cropStartX !== state.cropEndX) {
-                    minX = Math.min(state.cropStartX, state.cropEndX);
-                    minY = Math.min(state.cropStartY, state.cropEndY);
-                    maxX = Math.max(state.cropStartX, state.cropEndX);
-                    maxY = Math.max(state.cropStartY, state.cropEndY);
-                    hasContent = true;
+                    minX = Math.min(state.cropStartX, state.cropEndX) / this.scale;
+                    minY = Math.min(state.cropStartY, state.cropEndY) / this.scale;
+                    maxX = Math.max(state.cropStartX, state.cropEndX) / this.scale;
+                    maxY = Math.max(state.cropStartY, state.cropEndY) / this.scale;
+                    hasSelection = true;
                 }
-
+                
+                // 检查涂抹点
                 state.brushPoints.forEach(path => {
                     if (path.type === 'brush') {
                         path.points.forEach(p => {
-                            minX = Math.min(minX, p.x);
-                            minY = Math.min(minY, p.y);
-                            maxX = Math.max(maxX, p.x);
-                            maxY = Math.max(maxY, p.y);
-                            hasContent = true;
+                            minX = Math.min(minX, p.x / this.scale);
+                            minY = Math.min(minY, p.y / this.scale);
+                            maxX = Math.max(maxX, p.x / this.scale);
+                            maxY = Math.max(maxY, p.y / this.scale);
+                            hasSelection = true;
                         });
                     }
                 });
-
-                if (!hasContent) {
-                    Utils.showNotification('⚠️ 请先选择裁剪区域', 'warning');
+                
+                if (!hasSelection) {
+                    Utils.showNotification('⚠️ 请先选择识别区域', 'warning');
                     return;
                 }
-
-                // 稍微留点边距
-                minX = Math.max(0, minX - 5);
-                minY = Math.max(0, minY - 5);
-                maxX = Math.min(this.canvas.width, maxX + 5);
-                maxY = Math.min(this.canvas.height, maxY + 5);
-
-                const width = maxX - minX;
-                const height = maxY - minY;
-
-                tempCanvas.width = width / this.scale;
-                tempCanvas.height = height / this.scale;
-
-                // 在临时画布上绘制裁剪后的内容
-                tempCtx.save();
-                tempCtx.scale(1/this.scale, 1/this.scale);
-                tempCtx.translate(-minX, -minY);
-
-                // 重新创建剪裁路径
-                tempCtx.beginPath();
+                
+                // 安全边界
+                minX = Math.max(0, Math.floor(minX));
+                minY = Math.max(0, Math.floor(minY));
+                maxX = Math.min(this.img.width, Math.ceil(maxX));
+                maxY = Math.min(this.img.height, Math.ceil(maxY));
+                
+                const cropW = maxX - minX;
+                const cropH = maxY - minY;
+                
+                // 2. 在高清离屏画布上生成最终裁剪图
+                const finalCanvas = document.createElement('canvas');
+                finalCanvas.width = cropW;
+                finalCanvas.height = cropH;
+                const finalCtx = finalCanvas.getContext('2d');
+                
+                // 填充白色背景（防止透明图片OCR识别差）
+                finalCtx.fillStyle = '#FFFFFF';
+                finalCtx.fillRect(0, 0, cropW, cropH);
+                
+                finalCtx.save();
+                finalCtx.translate(-minX, -minY);
+                
+                // 创建高清剪裁路径
+                finalCtx.beginPath();
                 if (state.cropStartX !== state.cropEndX) {
-                    tempCtx.rect(
-                        Math.min(state.cropStartX, state.cropEndX),
-                        Math.min(state.cropStartY, state.cropEndY),
-                        Math.abs(state.cropEndX - state.cropStartX),
-                        Math.abs(state.cropEndY - state.cropStartY)
+                    finalCtx.rect(
+                        Math.min(state.cropStartX, state.cropEndX) / this.scale,
+                        Math.min(state.cropStartY, state.cropEndY) / this.scale,
+                        Math.abs(state.cropEndX - state.cropStartX) / this.scale,
+                        Math.abs(state.cropEndY - state.cropStartY) / this.scale
                     );
                 }
+                
                 state.brushPoints.forEach(path => {
-                    if (path.type === 'brush') {
-                        tempCtx.moveTo(path.points[0].x, path.points[0].y);
-                        path.points.forEach(p => tempCtx.lineTo(p.x, p.y));
+                    if (path.type === 'brush' && path.points.length > 0) {
+                        finalCtx.moveTo(path.points[0].x / this.scale, path.points[0].y / this.scale);
+                        for(let i=1; i<path.points.length; i++) {
+                            finalCtx.lineTo(path.points[i].x / this.scale, path.points[i].y / this.scale);
+                        }
                     }
                 });
-                tempCtx.clip();
-
-                // 擦除
+                
+                finalCtx.clip();
+                
+                // 处理橡皮擦
                 state.brushPoints.forEach(path => {
-                    if (path.type === 'eraser') {
-                        tempCtx.globalCompositeOperation = 'destination-out';
-                        tempCtx.beginPath();
-                        tempCtx.lineWidth = 20;
-                        tempCtx.lineCap = 'round';
-                        tempCtx.lineJoin = 'round';
-                        tempCtx.moveTo(path.points[0].x, path.points[0].y);
-                        path.points.forEach(p => tempCtx.lineTo(p.x, p.y));
-                        tempCtx.stroke();
-                        tempCtx.globalCompositeOperation = 'source-over';
+                    if (path.type === 'eraser' && path.points.length > 0) {
+                        finalCtx.globalCompositeOperation = 'destination-out';
+                        finalCtx.beginPath();
+                        finalCtx.lineWidth = 30 / this.scale;
+                        finalCtx.moveTo(path.points[0].x / this.scale, path.points[0].y / this.scale);
+                        for(let i=1; i<path.points.length; i++) {
+                            finalCtx.lineTo(path.points[i].x / this.scale, path.points[i].y / this.scale);
+                        }
+                        finalCtx.stroke();
+                        finalCtx.globalCompositeOperation = 'source-over';
                     }
                 });
-
-                tempCtx.drawImage(this.img, 0, 0);
-                tempCtx.restore();
-
-                state.currentImage = tempCanvas.toDataURL('image/jpeg', 0.9);
-                document.getElementById('previewImage').src = state.currentImage;
+                
+                // 绘制原图
+                finalCtx.drawImage(this.img, 0, 0);
+                finalCtx.restore();
+                
+                // 3. 输出高清图
+                state.currentImage = finalCanvas.toDataURL('image/jpeg', 0.95);
                 document.getElementById('cropSection').classList.add('hidden');
-                document.getElementById('previewSection').classList.remove('hidden');
-                Utils.showNotification('✅ 裁剪完成', 'success');
+                showPreview();
+                Utils.showNotification('✅ 已生成高清裁剪区域', 'success');
             }
         };
 
         // ==================== UI 函数 ====================
+        function animateValue(id, start, end, duration) {
+            const obj = document.getElementById(id);
+            if (!obj) return;
+            const range = end - start;
+            const startTime = new Date().getTime();
+            const timer = setInterval(() => {
+                const now = new Date().getTime();
+                const progress = Math.min((now - startTime) / duration, 1);
+                obj.innerHTML = Math.floor(progress * range + start);
+                if (progress === 1) clearInterval(timer);
+            }, 20);
+        }
+
         function updateProgress(percent, status) {
             document.getElementById('progressFill').style.width = percent + '%';
             document.getElementById('loadingStatus').textContent = status;
@@ -1662,118 +1861,86 @@ ${text}
             document.getElementById('resultsSection').classList.remove('hidden');
 
             state.currentAnalysis = analysis;
-
             const score = analysis.score || 0;
-            document.getElementById('scoreNumber').textContent = score;
-            document.getElementById('scoreLevel').textContent = analysis.level || '未知';
             
-            // 添加总热量和厂家可信度显示
+            // 评分动画
+            animateValue('scoreNumber', 0, score, 1500);
+            document.getElementById('scoreLevel').textContent = analysis.level || '未知';
+            document.documentElement.style.setProperty('--score-percentage', score);
+            
+            // 厂家与热量信息美化
             let extraInfo = '';
             if (analysis.totalCalories) {
-                extraInfo += `<div style="margin-top: 8px; padding: 8px; background: var(--warning-light); border-radius: 6px; font-size: 14px; color: #B45309;">
-                    <strong>🔥 总热量：</strong>${analysis.totalCalories}
+                extraInfo += `<div style="margin-top: 12px; padding: 12px; background: linear-gradient(135deg, #FFFBEB 0%, #FEF3C7 100%); border-radius: 12px; border-left: 4px solid #F59E0B;">
+                    <div style="font-size: 12px; color: #92400E; font-weight: 600;">🔥 预估整包总热量</div>
+                    <div style="font-size: 18px; font-weight: 800; color: #B45309;">${analysis.totalCalories}</div>
                 </div>`;
             }
             if (analysis.manufacturerTrust) {
-                const trust = analysis.manufacturerTrust;
-                const trustColor = trust.score >= 80 ? 'var(--primary-dark)' : trust.score >= 60 ? '#B45309' : '#DC2626';
-                const trustBg = trust.score >= 80 ? 'var(--primary-light)' : trust.score >= 60 ? 'var(--warning-light)' : 'var(--danger-light)';
-                extraInfo += `<div style="margin-top: 8px; padding: 8px; background: ${trustBg}; border-radius: 6px; font-size: 14px; color: ${trustColor};">
-                    <strong>🏭 厂家可信度：</strong>${trust.score}/100 (${trust.level})<br>
-                    <small style="opacity: 0.8;">${trust.description}</small>
+                const t = analysis.manufacturerTrust;
+                const color = t.score >= 80 ? '#059669' : t.score >= 60 ? '#D97706' : '#DC2626';
+                const bg = t.score >= 80 ? '#ECFDF5' : t.score >= 60 ? '#FFFBEB' : '#FEF2F2';
+                extraInfo += `<div style="margin-top: 12px; padding: 12px; background: ${bg}; border-radius: 12px; border-left: 4px solid ${color};">
+                    <div style="font-size: 12px; color: ${color}; font-weight: 600;">🏭 生产厂家可靠度 (${t.score}/100)</div>
+                    <div style="font-size: 15px; font-weight: 700; color: ${color}; margin: 2px 0;">${t.level}</div>
+                    <div style="font-size: 12px; color: ${color}; opacity: 0.8;">${t.description}</div>
                 </div>`;
             }
-            document.getElementById('scoreDescription').innerHTML = (analysis.description || '') + extraInfo;
-            document.documentElement.style.setProperty('--score-percentage', score);
+            document.getElementById('scoreDescription').innerHTML = `<div style="font-size: 14px; line-height: 1.6; margin-bottom: 8px;">${analysis.description || ''}</div>` + extraInfo;
 
-            if (analysis.ingredients && analysis.ingredients.length > 0) {
-                document.getElementById('ingredientsList').innerHTML = analysis.ingredients.map(ing => `
+            // 配料表美化
+            if (analysis.ingredients) {
+                document.getElementById('ingredientsList').innerHTML = analysis.ingredients.map(ing => {
+                    const riskPercent = (ing.risk / 5) * 100;
+                    const barColor = ing.risk >= 4 ? '#EF4444' : ing.risk >= 2 ? '#F59E0B' : '#10B981';
+                    return `
                     <div class="ingredient-tag risk-${ing.risk || 0}" onclick="showIngredientDetail('${Utils.escapeHtml(ing.name)}', ${ing.risk}, '${Utils.escapeHtml(ing.description || '')}')">
-                        ${Utils.escapeHtml(ing.name)}<br><small>${ing.risk}/5</small>
-                    </div>
-                `).join('');
+                        <span style="font-size: 13px;">${Utils.escapeHtml(ing.name)}</span>
+                        <div class="risk-bar"><div class="risk-bar-fill" style="width: ${riskPercent}%; background: ${barColor}"></div></div>
+                    </div>`;
+                }).join('');
             }
 
-            // 展示双重营养对比
-            let nutritionHtml = '';
-            const std = analysis.nutritionStandard;
-            const total = analysis.nutritionTotal;
-            
-            if (std && total) {
-                nutritionHtml = `
-                <div style="overflow-x: auto; width: 100%; margin-top: 10px;">
-                    <table style="width: 100%; border-collapse: collapse; font-size: 12px; text-align: left; border: 1px solid var(--gray-200);">
-                        <thead>
+            // 营养成分对比表
+            const nutritionGrid = document.getElementById('nutritionGrid');
+            if (nutritionGrid) {
+                const std = analysis.nutritionStandard;
+                const total = analysis.nutritionTotal;
+                if (std && total) {
+                    nutritionGrid.innerHTML = `
+                    <div style="grid-column: 1 / -1; overflow-x: auto;">
+                        <table style="width: 100%; border-spacing: 0; border-collapse: separate; border-radius: 12px; overflow: hidden; border: 1px solid var(--gray-200);">
                             <tr style="background: var(--gray-100);">
-                                <th style="padding: 8px; border: 1px solid var(--gray-200);">项目</th>
-                                <th style="padding: 8px; border: 1px solid var(--gray-200);">${std.label || '每100g/ml'}</th>
-                                <th style="padding: 8px; border: 1px solid var(--gray-200); background: var(--primary-light); color: var(--primary-dark);">${total.label || '整包'}</th>
+                                <th style="padding: 12px; text-align: left; font-size: 12px;">成分项目</th>
+                                <th style="padding: 12px; text-align: right; font-size: 12px;">${std.label || '100g'}</th>
+                                <th style="padding: 12px; text-align: right; font-size: 12px; background: var(--primary-light); color: var(--primary-dark);">整包总计</th>
                             </tr>
-                        </thead>
-                        <tbody>
-                            <tr>
-                                <td style="padding: 8px; border: 1px solid var(--gray-200);">能量</td>
-                                <td style="padding: 8px; border: 1px solid var(--gray-200);">${std.energy || '-'}</td>
-                                <td style="padding: 8px; border: 1px solid var(--gray-200); font-weight: bold; color: var(--primary-dark);">${total.energy || '-'}</td>
-                            </tr>
-                            <tr>
-                                <td style="padding: 8px; border: 1px solid var(--gray-200);">蛋白质</td>
-                                <td style="padding: 8px; border: 1px solid var(--gray-200);">${std.protein || '-'}</td>
-                                <td style="padding: 8px; border: 1px solid var(--gray-200); font-weight: bold; color: var(--primary-dark);">${total.protein || '-'}</td>
-                            </tr>
-                            <tr>
-                                <td style="padding: 8px; border: 1px solid var(--gray-200);">脂肪</td>
-                                <td style="padding: 8px; border: 1px solid var(--gray-200);">${std.fat || '-'}</td>
-                                <td style="padding: 8px; border: 1px solid var(--gray-200); font-weight: bold; color: var(--primary-dark);">${total.fat || '-'}</td>
-                            </tr>
-                            <tr>
-                                <td style="padding: 8px; border: 1px solid var(--gray-200);">碳水</td>
-                                <td style="padding: 8px; border: 1px solid var(--gray-200);">${std.carbs || '-'}</td>
-                                <td style="padding: 8px; border: 1px solid var(--gray-200); font-weight: bold; color: var(--primary-dark);">${total.carbs || '-'}</td>
-                            </tr>
-                            <tr>
-                                <td style="padding: 8px; border: 1px solid var(--gray-200);">钠</td>
-                                <td style="padding: 8px; border: 1px solid var(--gray-200);">${std.sodium || '-'}</td>
-                                <td style="padding: 8px; border: 1px solid var(--gray-200); font-weight: bold; color: var(--primary-dark);">${total.sodium || '-'}</td>
-                            </tr>
-                        </tbody>
-                    </table>
-                </div>`;
-            } else if (analysis.nutrition) {
-                const nut = analysis.nutrition;
-                nutritionHtml = `<div class="nutrition-grid" id="nutritionGrid">
-                    <div style="padding: 12px; background: var(--primary-light); border-radius: 8px; text-align: center;">
-                        <div style="font-size: 12px; color: #6B7280;">能量</div>
-                        <div style="font-size: 18px; font-weight: 700; color: var(--primary-dark);">${nut.energy || '-'}</div>
-                    </div>
-                    <div style="padding: 12px; background: var(--warning-light); border-radius: 8px; text-align: center;">
-                        <div style="font-size: 12px; color: #6B7280;">蛋白质</div>
-                        <div style="font-size: 18px; font-weight: 700; color: #B45309;">${nut.protein || '-'}</div>
-                    </div>
-                    <div style="padding: 12px; background: var(--warning-light); border-radius: 8px; text-align: center;">
-                        <div style="font-size: 12px; color: #6B7280;">脂肪</div>
-                        <div style="font-size: 18px; font-weight: 700; color: #B45309;">${nut.fat || '-'}</div>
-                    </div>
-                    <div style="padding: 12px; background: var(--warning-light); border-radius: 8px; text-align: center;">
-                        <div style="font-size: 12px; color: #6B7280;">碳水</div>
-                        <div style="font-size: 18px; font-weight: 700; color: #B45309;">${nut.carbs || '-'}</div>
-                    </div>
-                </div>`;
+                            ${['energy', 'protein', 'fat', 'carbs', 'sodium'].map(key => {
+                                const labels = { energy: '能量', protein: '蛋白质', fat: '脂肪', carbs: '碳水', sodium: '钠' };
+                                return `<tr>
+                                    <td style="padding: 12px; border-top: 1px solid var(--gray-200); font-size: 13px;">${labels[key]}</td>
+                                    <td style="padding: 12px; border-top: 1px solid var(--gray-200); text-align: right; font-size: 13px; color: var(--gray-600);">${std[key] || '-'}</td>
+                                    <td style="padding: 12px; border-top: 1px solid var(--gray-200); text-align: right; font-size: 14px; font-weight: 700; color: var(--primary-dark); background: rgba(16, 185, 129, 0.03);">${total[key] || '-'}</td>
+                                </tr>`;
+                            }).join('')}
+                        </table>
+                    </div>`;
+                }
             }
-            
-            const nutritionSection = document.getElementById('nutritionGrid').parentElement;
-            nutritionSection.innerHTML = `
-                <div class="card-title">📊 营养成分分析</div>
-                ${nutritionHtml}
-            `;
 
-            if (analysis.advice && analysis.advice.length > 0) {
-                document.getElementById('adviceList').innerHTML = analysis.advice.map(advice => `
-                    <li style="padding: 12px; background: var(--primary-light); border-left: 4px solid var(--primary); border-radius: 4px;">
-                        <div style="color: var(--primary-dark);">${Utils.escapeHtml(advice)}</div>
+            // 建议列表美化
+            if (analysis.advice) {
+                document.getElementById('adviceList').innerHTML = analysis.advice.map(adv => `
+                    <li style="padding: 12px 16px; background: white; border-radius: 12px; border: 1px solid var(--gray-100); display: flex; gap: 10px; align-items: flex-start; box-shadow: 0 2px 4px rgba(0,0,0,0.02);">
+                        <span style="color: var(--primary);">💡</span>
+                        <span style="font-size: 14px; color: var(--gray-700);">${Utils.escapeHtml(adv)}</span>
                     </li>
                 `).join('');
             }
+
+            // 展示 API 原始响应（调试用）
+            const apiDisplay = document.getElementById('apiResponseDisplay');
+            if (apiDisplay) apiDisplay.textContent = JSON.stringify(analysis, null, 2);
 
             addToHistory(analysis);
         }
@@ -1844,17 +2011,22 @@ ${text}
                 return;
             }
 
-            historyList.innerHTML = filtered.map(item => `
-                <li style="padding: 12px; background: var(--gray-100); border-radius: 8px; cursor: pointer; transition: all 0.3s;" onclick="viewHistoryDetail(${item.id})">
+            historyList.innerHTML = filtered.map(item => {
+                const color = item.score >= 80 ? '#10B981' : item.score >= 60 ? '#F59E0B' : '#EF4444';
+                return `
+                <li style="padding: 16px; background: white; border-radius: 12px; border: 1px solid var(--gray-100); border-left: 5px solid ${color}; margin-bottom: 12px; cursor: pointer; transition: all 0.3s; box-shadow: 0 2px 8px rgba(0,0,0,0.05);" onclick="viewHistoryDetail(${item.id})">
                     <div style="display: flex; justify-content: space-between; align-items: center;">
                         <div>
-                            <div style="font-weight: 600; color: #1F2937;">${item.level || '未知'}</div>
-                            <div style="font-size: 12px; color: #6B7280; margin-top: 4px;">${new Date(item.timestamp).toLocaleDateString()}</div>
+                            <div style="font-weight: 700; color: #1F2937; font-size: 15px;">${item.level || '健康分析'}</div>
+                            <div style="font-size: 11px; color: #9CA3AF; margin-top: 4px;">📅 ${new Date(item.timestamp).toLocaleString()}</div>
                         </div>
-                        <div style="font-size: 24px; font-weight: 700; color: var(--primary);">${item.score || 0}</div>
+                        <div style="text-align: right;">
+                            <div style="font-size: 20px; font-weight: 900; color: ${color};">${item.score || 0}</div>
+                            <div style="font-size: 10px; color: #9CA3AF; font-weight: 600;">SCORE</div>
+                        </div>
                     </div>
-                </li>
-            `).join('');
+                </li>`;
+            }).join('');
         }
 
         function viewHistoryDetail(id) {
@@ -1867,6 +2039,10 @@ ${text}
 
         async function startAnalysis(mode) {
             if (!state.currentImage) return;
+            
+            // 清空缓存，确保每次都是新分析
+            APIModule.cache = {};
+            
             state.recognitionMode = mode;
             state.netWeight = document.getElementById('netWeightInput').value.trim();
 
@@ -1903,7 +2079,10 @@ ${text}
             startAnalysis('ocr');
         }
 
-        async function submitOCREdit() {
+        async function submitOCREdit(event) {
+            // 阻止默认提交行为，防止页面刷新
+            if (event && event.preventDefault) event.preventDefault();
+            
             const ocrText = document.getElementById('ocrTextInput').value.trim();
             const netWeightInput = document.getElementById('netWeightInputEdit');
             state.netWeight = netWeightInput ? netWeightInput.value.trim() : '';
@@ -1913,6 +2092,11 @@ ${text}
                 return;
             }
             
+            console.log('[DEBUG] 提交改进内容:', ocrText);
+            
+            // 清空缓存，确保每次都是新分析
+            APIModule.cache = {};
+            
             document.getElementById('editOCRSection').classList.add('hidden');
             showLoading();
             
@@ -1920,9 +2104,11 @@ ${text}
                 const analysis = await APIModule.analyzeHealth(ocrText, '');
                 showResults(analysis);
             } catch (error) {
-                showError(error.message);
+                console.error('[DEBUG] 提交改进出错:', error);
+                showError(error.message + (error.stack ? '\n' + error.stack : ''));
                 Utils.showNotification('❌ ' + error.message, 'error');
             }
+            return false;
         }
 
         // ==================== 事件绑定 ====================
@@ -2006,14 +2192,16 @@ ${text}
                 document.getElementById('previewSection').classList.remove('hidden');
             });
 
-            // 编辑 OCR
+            // 取消编辑
             document.getElementById('cancelEditBtn').addEventListener('click', () => {
                 document.getElementById('editOCRSection').classList.add('hidden');
                 document.getElementById('previewSection').classList.remove('hidden');
             });
-
-            document.getElementById('submitEditBtn').addEventListener('click', submitOCREdit);
-
+            // 提交编辑
+            document.getElementById('submitEditBtn').addEventListener('click', (e) => {
+                e.preventDefault();
+                submitOCREdit(e);
+            });
             // 重新扫描按钮
             document.getElementById('rescanBtn').addEventListener('click', () => {
                 document.getElementById('resultsSection').classList.add('hidden');
@@ -2024,13 +2212,36 @@ ${text}
             document.getElementById('improveBtn').addEventListener('click', () => {
                 const analysis = state.currentAnalysis;
                 if (!analysis) return;
+                
+                // 记录当前状态，防止丢失
+                console.log('[DEBUG] 进入改进模式，当前分析结果:', analysis);
+                
                 document.getElementById('resultsSection').classList.add('hidden');
                 document.getElementById('editOCRSection').classList.remove('hidden');
+                
+                // 拼接最详尽的配料信息供用户修改
                 let ingredientsText = '';
                 if (analysis.ingredients && analysis.ingredients.length > 0) {
-                    ingredientsText = analysis.ingredients.map(i => i.name).join(', ');
+                    // 包含所有拆解后的配料名
+                    ingredientsText = analysis.ingredients.map(i => i.name).join('，');
                 }
-                document.getElementById('ocrTextInput').value = ingredientsText;
+                
+                // 拼接营养成分信息，方便用户一并修改
+                let nutritionText = '';
+                if (analysis.nutritionStandard) {
+                    const std = analysis.nutritionStandard;
+                    nutritionText = `\n\n[当前营养成分参考]\n${std.label || '每100g'}: 能量 ${std.energy || '-'}, 蛋白质 ${std.protein || '-'}, 脂肪 ${std.fat || '-'}, 碳水 ${std.carbs || '-'}, 钠 ${std.sodium || '-'}`;
+                }
+                
+                document.getElementById('ocrTextInput').value = ingredientsText + nutritionText;
+                
+                // 自动填入净含量
+                const netWeightInput = document.getElementById('netWeightInputEdit');
+                if (netWeightInput) {
+                    netWeightInput.value = analysis.netWeightUsed || state.netWeight || '';
+                }
+                
+                Utils.showNotification('💡 请在下方编辑配料或营养数据', 'info');
             });
 
             // 分享按钮
